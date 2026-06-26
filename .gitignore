@@ -1,0 +1,6 @@
+qdrant_data
+venv
+chatbot.log
+pdf_dump.txt
+.env
+test_chat.py

@@ -1,0 +1,12 @@
+llama-index
+llama-index-llms-groq
+llama-index-vector-stores-qdrant
+llama-index-embeddings-fastembed
+qdrant-client
+fastembed
+pymupdf
+fastapi
+uvicorn
+python-dotenv
+ragas
+datasets
