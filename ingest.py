@@ -3,6 +3,10 @@ import fitz  # PyMuPDF
 from typing import List
 from dotenv import load_dotenv
 import logging
+import pytesseract
+from PIL import Image
+import io
+import logging
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,6 +40,30 @@ def parse_pdf(pdf_path: str) -> List[Document]:
     for page_num in range(len(doc)):
         page = doc.load_page(page_num)
         blocks = page.get_text("dict").get("blocks", [])
+        
+        # OCR Fallback for scanned pages
+        text_length = sum([len(s["text"]) for b in blocks if "lines" in b for l in b["lines"] for s in l["spans"]])
+        if text_length < 50:
+            logger.info(f"Page {page_num + 1} appears to be a scanned image. Applying OCR fallback...")
+            try:
+                pix = page.get_pixmap()
+                img = Image.open(io.BytesIO(pix.tobytes("png")))
+                ocr_text = pytesseract.image_to_string(img)
+                if len(ocr_text.strip()) > 10:
+                    doc_obj = Document(
+                        text=ocr_text.strip(),
+                        metadata={
+                            "page_number": page_num + 1,
+                            "chapter": current_chapter,
+                            "element_type": "body_ocr",
+                        },
+                        excluded_embed_metadata_keys=["element_type"],
+                        excluded_llm_metadata_keys=["element_type"]
+                    )
+                    documents.append(doc_obj)
+            except Exception as e:
+                logger.warning(f"OCR failed on page {page_num + 1}. Is Tesseract installed? Error: {e}")
+            continue
         
         for b in blocks:
             if "lines" in b:

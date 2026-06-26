@@ -2,6 +2,7 @@ import os
 import logging
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import List, Optional
 
 # Configure logging to save to a file and output to console
 logging.basicConfig(
@@ -47,8 +48,13 @@ except Exception as e:
     index = None
     print(f"Warning: Could not load index. Did you run ingest.py? Error: {e}")
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
 class ChatRequest(BaseModel):
     query: str
+    history: Optional[List[ChatMessage]] = []
 
 class ChatResponse(BaseModel):
     answer: str
@@ -64,7 +70,7 @@ qa_prompt_tmpl_str = (
     "1. You MUST answer the question using ONLY the provided context.\n"
     "2. If the context does not contain the answer, or if it is an out-of-syllabus/non-history question (like math, science, current affairs), you MUST refuse to answer and say you can only help with the NCERT History syllabus.\n"
     "3. Explain concepts clearly at a 15-year-old's reading level. Define hard terms if necessary.\n"
-    "4. For every factual claim, you MUST cite the chapter and page number at the end of the sentence or paragraph, using the metadata provided in the context (e.g., [Chapter 1, Page 12]).\n"
+    "4. For every factual claim, you MUST cite the chapter and page number exactly as they appear in the metadata of the specific chunk you are using. Do not mix metadata between different chunks! Format it exactly as [Chapter: <chapter_name>, Page: <page_number>].\n"
     "5. Do NOT hallucinate or guess. \n\n"
     "Query: {query_str}\n"
     "Answer: "
@@ -129,8 +135,22 @@ async def chat(request: ChatRequest):
         text_qa_template=qa_prompt_tmpl
     )
     
-    # 3. Generation
-    response = query_engine.query(request.query)
+    # 3. Generation (Multi-turn using CondenseQuestionChatEngine)
+    from llama_index.core.chat_engine import CondenseQuestionChatEngine
+    from llama_index.core.llms import ChatMessage as LlamaChatMessage
+    
+    # Convert incoming history to LlamaIndex format
+    chat_history = []
+    if request.history:
+        chat_history = [LlamaChatMessage(role=msg.role, content=msg.content) for msg in request.history]
+        
+    chat_engine = CondenseQuestionChatEngine.from_defaults(
+        query_engine=query_engine,
+        chat_history=chat_history,
+        verbose=True
+    )
+    
+    response = chat_engine.chat(request.query)
     
     logger.info("✅ FINAL ANSWER:")
     logger.info(str(response))

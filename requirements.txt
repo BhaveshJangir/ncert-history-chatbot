@@ -8,5 +8,5 @@ pymupdf
 fastapi
 uvicorn
 python-dotenv
-ragas
-datasets
+pytesseract
+Pillow
