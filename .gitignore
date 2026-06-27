@@ -4,3 +4,4 @@ chatbot.log
 pdf_dump.txt
 .env
 test_chat.py
+qdrant_storage
