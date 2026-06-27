@@ -6,7 +6,13 @@ import logging
 import pytesseract
 from PIL import Image
 import io
-import logging
+import sys
+import os
+
+# Add the project root to sys.path so 'from app import config' works when run directly
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from app import config
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,10 +35,10 @@ from llama_index.core import Settings
 load_dotenv()
 
 def parse_pdf(pdf_path: str) -> List[Document]:
-    """
-    Parses the PDF and extracts text with metadata, 
-    separating body text from glossaries/source boxes using basic heuristics.
-    """
+    """Parse PDF and extract text using PyMuPDF and OCR."""
+    if not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"CRITICAL ERROR: PDF not found at {os.path.abspath(pdf_path)}. Ensure the volume is mounted correctly.")
+        
     doc = fitz.open(pdf_path)
     documents = []
     current_chapter = "Unknown Chapter"
@@ -81,14 +87,12 @@ def parse_pdf(pdf_path: str) -> List[Document]:
                             header_font = True
                 
                 text = text.strip()
-                if not text or len(text) < 10: # Skip very short useless text
+                if not text or len(text) < 10:
                     continue
                 
-                # Heuristics for tagging
                 element_type = "body"
                 lower_text = text.lower()
                 
-                # NCERT specific Chapter header detection
                 if header_font and "india and the contemporary world" not in lower_text:
                     if len(text) > 4:
                         current_chapter = text
@@ -105,7 +109,6 @@ def parse_pdf(pdf_path: str) -> List[Document]:
                 elif "?" in text and len(text.split()) < 30 and ("exercises" in lower_text or "discuss" in lower_text):
                     element_type = "question"
                 
-                # Create a LlamaIndex document for each meaningful block
                 doc_obj = Document(
                     text=text,
                     metadata={
@@ -120,61 +123,62 @@ def parse_pdf(pdf_path: str) -> List[Document]:
                 
     return documents
 
-def ingest_data(pdf_path: str, collection_name: str = "ncert_history"):
+def ingest_data(pdf_path: str, collection_name: str = config.COLLECTION_NAME, skip_if_exists: bool = False):
+    logger.info("Connecting to Qdrant...")
+    qdrant_url = os.getenv("QDRANT_URL")
+    if qdrant_url:
+        client = QdrantClient(url=qdrant_url)
+    else:
+        client = QdrantClient(path="./data/qdrant_data")
+        
+    if client.collection_exists(collection_name):
+        try:
+            count = client.count(collection_name).count
+            if count > 0 and skip_if_exists:
+                logger.info(f"Collection '{collection_name}' already exists with {count} documents. Skipping ingestion.")
+                return
+        except Exception:
+            pass
+            
+        logger.info(f"Collection '{collection_name}' already exists but needs overwriting...")
+        client.delete_collection(collection_name)
+
     logger.info(f"Parsing PDF: {pdf_path}...")
     documents = parse_pdf(pdf_path)
     logger.info(f"Extracted {len(documents)} blocks from PDF.")
 
-    # 1. Deliberate chunking strategy
-    # We use a SentenceSplitter to ensure chunks respect sentence boundaries and aren't too large
-    parser = SentenceSplitter(chunk_size=512, chunk_overlap=50)
+    parser = SentenceSplitter(chunk_size=config.CHUNK_SIZE, chunk_overlap=config.CHUNK_OVERLAP)
     nodes = parser.get_nodes_from_documents(documents)
     logger.info(f"Created {len(nodes)} nodes/chunks.")
 
-    # 2. Embeddings setup
-    # Using FastEmbed for dense vectors (runs locally)
     logger.info("Initializing embeddings...")
-    embed_model = FastEmbedEmbedding(model_name="BAAI/bge-small-en-v1.5")
+    embed_model = FastEmbedEmbedding(model_name=config.EMBED_MODEL_NAME)
     Settings.embed_model = embed_model
     
-    # We will use Qdrant for both dense and sparse (hybrid) search
-    # Running Qdrant locally in memory/disk mode via client
-    logger.info("Connecting to local Qdrant...")
-    client = QdrantClient(path="./qdrant_data")
-    
-    if client.collection_exists(collection_name):
-        logger.info(f"Collection '{collection_name}' already exists. Overwriting...")
-        client.delete_collection(collection_name)
-    
-    # Setup the Qdrant vector store
     vector_store = QdrantVectorStore(
         client=client, 
         collection_name=collection_name,
-        enable_hybrid=True # Crucial for proper noun search (BM25 + Dense)
+        enable_hybrid=True
     )
     
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
 
-    # 3. Create Index and Index the nodes
     logger.info("Indexing nodes into Qdrant (this may take a minute depending on PDF size)...")
     index = VectorStoreIndex(
         nodes, 
         storage_context=storage_context,
         show_progress=True,
-        insert_batch_size=32
+        insert_batch_size=config.INSERT_BATCH_SIZE
     )
     
-    logger.info("Ingestion complete!")
+    logger.info(f"Ingestion complete! Total Points in DB: {client.count(collection_name).count}")
 
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 2:
-        logger.error("Usage: python ingest.py <path_to_ncert_history.pdf>")
+        logger.error("Usage: python ingest.py <path_to_ncert_history.pdf> [--skip-if-exists]")
         sys.exit(1)
     
     pdf_file = sys.argv[1]
-    if not os.path.exists(pdf_file):
-        logger.error(f"File not found: {pdf_file}")
-        sys.exit(1)
-        
-    ingest_data(pdf_file)
+    skip_exists = "--skip-if-exists" in sys.argv
+    ingest_data(pdf_file, skip_if_exists=skip_exists)

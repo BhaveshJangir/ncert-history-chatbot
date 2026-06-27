@@ -1,0 +1,30 @@
+{
+    "question": [
+        "Who wrote Hind Swaraj?",
+        "Why did nationalism rise in 19th-century Europe?",
+        "Write a short note on the Non-Cooperation Movement.",
+        "Civil disobedience movement kya tha?",
+        "Solve this equation: 2x + 4 = 10"
+    ],
+    "answer": [
+        "Mahatma Gandhi wrote Hind Swaraj in 1909.",
+        "Nationalism rose in 19th-century Europe due to a combination of political, social, and economic factors including the ideas of the French Revolution and the rise of a new middle class.",
+        "The Non-Cooperation movement was launched by Gandhi in 1920 to protest British rule. It involved boycotting British goods, schools, and titles. It was called off after the Chauri Chaura incident in 1922.",
+        "Civil disobedience movement was a major campaign led by Gandhi starting with the Salt March in 1930, where people intentionally broke unjust British laws.",
+        "I can only answer questions related to your Class 10 NCERT History syllabus."
+    ],
+    "contexts": [
+        ["Mahatma Gandhi declared in his book Hind Swaraj (1909) that British rule was established in India with the cooperation of Indians."],
+        ["The first clear expression of nationalism came with the French Revolution in 1789... The growth of industrial production and trade meant the growth of towns and the emergence of commercial classes."],
+        ["The Non-Cooperation-Khilafat Movement began in January 1921. Various social groups participated... The movement was called off due to violence at Chauri Chaura."],
+        ["Mahatma Gandhi found in salt a powerful symbol that could unite the nation... This marked the beginning of the Civil Disobedience Movement."],
+        [""]
+    ],
+    "ground_truth": [
+        "Mahatma Gandhi",
+        "French Revolution, middle class emergence, and industrialization.",
+        "Launched in 1920 by Gandhi, boycotted British goods, called off due to Chauri Chaura.",
+        "A movement to break unjust laws like the salt tax, led by Gandhi.",
+        "Refusal message"
+    ]
+}

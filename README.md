@@ -5,56 +5,72 @@ A highly optimized Retrieval-Augmented Generation (RAG) chatbot designed to answ
 ## Features
 - **Strict Grounding:** Refuses out-of-syllabus and non-history questions.
 - **Precise Citations:** Outputs exactly which chapter and page the information comes from.
+- **Multi-turn Chat:** Supports coreference resolution (e.g. "Who was Gandhi? -> What did he do?")
+- **OCR Fallback:** Uses Tesseract to extract text from scanned images.
 - **Hybrid Search:** Uses Qdrant for dense (semantic) and sparse (keyword/BM25) search.
-- **Age-Appropriate:** Explains concepts at a 15-year-old's level.
-- **Production-Ready:** Built on FastAPI with LlamaIndex and Groq Cloud for ultra-fast, zero-cost LLM inference.
 
 ## Prerequisites
-- Python 3.10+
 - A [Groq API Key](https://console.groq.com/keys) (Free)
+- Python 3.10+
 
-## Setup Instructions
+---
 
-1. **Clone & Environment Setup:**
+## 📁 Project Structure
+```text
+ncert-history-chatbot/
+├── app/                        # Main application source code
+│   ├── main.py                 # FastAPI server & Chat Engine
+│   ├── ingest.py               # PDF Parsing & Qdrant Ingestion pipeline
+│   └── eval.py                 # Ragas evaluation script
+├── data/                       # Local data storage
+│   ├── ncert_history.pdf       # The textbook
+│   └── qdrant_data/            # Local SQLite database (if run locally)
+├── Dockerfile                  # Builds the Python API image
+├── docker-compose.yml          # Orchestrates the API and Vector DB containers
+├── startup.sh                  # Docker entrypoint script for auto-ingestion
+├── requirements.txt            # Python dependencies
+├── golden_dataset.json         # ~50-100 evaluation Q&A pairs template
+└── sample_transcripts.md       # Examples of bot interactions
+```
+
+---
+
+## 🚀 Quick Start
+Run the chatbot directly on your local machine using Python. The Qdrant vector database will automatically use local disk storage (`./data/qdrant_data`).
+
+1. **Install dependencies:**
    ```bash
-   python -m venv venv
-   # On Windows:
-   .\venv\Scripts\activate
-   # On Mac/Linux:
-   source venv/bin/activate
-   
    pip install -r requirements.txt
    ```
+   *(Note: For the OCR fallback to work locally, you must install Tesseract-OCR on your host machine).*
 
-2. **Environment Variables:**
-   Create a `.env` file in the root directory and add your Groq API key:
-   ```env
-   GROQ_API_KEY=your_groq_api_key_here
-   ```
+2. **Add your API Key:** Create a `.env` file in the root directory with `GROQ_API_KEY`.
 
-3. **Data Ingestion:**
-   Place the official NCERT History textbook PDF (e.g., `ncert_history.pdf`) in the project directory, then run the ingestion script:
+3. **Run the Ingestion Pipeline:**
    ```bash
-   python ingest.py ncert_history.pdf
+   python app/ingest.py data/ncert_history.pdf
    ```
-   *This will parse the PDF, create chunks, generate embeddings (locally using FastEmbed), and index them into a local Qdrant database.*
 
-4. **Run the API:**
-   Start the FastAPI server:
+4. **Start the API Server:**
    ```bash
-   python main.py
+   uvicorn app.main:app --host 0.0.0.0 --port 8000
    ```
-   The API will be available at `http://localhost:8000`. You can access the Swagger UI documentation at `http://localhost:8000/docs`.
+
+5. **Start the Streamlit UI (in a new terminal):**
+   ```bash
+   streamlit run app/ui.py
+   ```
+   The UI will be available at `http://localhost:8501`.
 
 ## Usage
 You can test the API using `curl` or Postman:
 ```bash
 curl -X POST http://localhost:8000/chat \
      -H "Content-Type: application/json" \
-     -d '{"query": "Who wrote Hind Swaraj?"}'
+     -d '{"query": "Who wrote Hind Swaraj?", "history": []}'
 ```
 
 ## Architecture Notes
-- **Ingestion:** Uses PyMuPDF to extract text with page metadata. Employs heuristics to separate glossaries and source boxes.
-- **Vector DB:** Qdrant is used natively via `qdrant-client` to avoid Docker requirements, supporting Hybrid Search out of the box.
-- **LLM:** Groq provides blazing-fast inference using Llama-3-70B for the main generation and Llama-3-8B for guardrails.
+- **Ingestion:** Uses PyMuPDF to extract text. Uses heuristics to detect chapters, and falls back to PyTesseract for scanned image pages.
+- **Vector DB:** Qdrant supports Hybrid Search out of the box. Automatically connects to local disk storage (`./data/qdrant_data`).
+- **LLM:** Groq provides blazing-fast inference for query execution.
