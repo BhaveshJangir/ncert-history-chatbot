@@ -20,14 +20,13 @@ A highly optimized Retrieval-Augmented Generation (RAG) chatbot designed to answ
 ncert-history-chatbot/
 ├── app/                        # Main application source code
 │   ├── main.py                 # FastAPI server & Chat Engine
-│   ├── ingest.py               # PDF Parsing & Qdrant Ingestion pipeline
-│   └── eval.py                 # Ragas evaluation script
+│   ├── ingest.py               # Data Ingestion Script
+│   ├── eval.py                 # Ragas evaluation script
+│   ├── config.py               # Application configuration
+│   └── ui.py                   # Streamlit frontend UI
 ├── data/                       # Local data storage
 │   ├── ncert_history.pdf       # The textbook
 │   └── qdrant_data/            # Local SQLite database (if run locally)
-├── Dockerfile                  # Builds the Python API image
-├── docker-compose.yml          # Orchestrates the API and Vector DB containers
-├── startup.sh                  # Docker entrypoint script for auto-ingestion
 ├── requirements.txt            # Python dependencies
 ├── golden_dataset.json         # ~50-100 evaluation Q&A pairs template
 └── sample_transcripts.md       # Examples of bot interactions
